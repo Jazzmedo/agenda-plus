@@ -1,0 +1,9 @@
+{
+	"id": "agenda-plus",
+	"name": "AgendaPlus",
+	"version": "1.0.0",
+	"minAppVersion": "1.5.0",
+	"description": "Manage tasks and events in a month, week and day calendar, with recurring tasks, event countdowns, priority tags and completion statistics.",
+	"author": "Jazzmedo",
+	"isDesktopOnly": false
+}

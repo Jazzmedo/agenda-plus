@@ -1,0 +1,1545 @@
+/* ── Calendar Tasks ────────────────────────────────────────────────────────
+   Everything is keyed off Obsidian's theme variables so the plugin inherits
+   the user's colour scheme (Catppuccin, default light/dark, anything else).
+   ------------------------------------------------------------------------ */
+
+.ct-view {
+	--ct-gap: 6px;
+	--ct-radius: 6px;
+	--ct-accent: var(--interactive-accent);
+	--ct-chip-accent: var(--text-muted);
+	--ct-event-color: var(--interactive-accent);
+	--ct-done: var(--color-green, #4caf50);
+	--ct-warn: var(--color-red, #e5534b);
+
+	--ct-pri-highest: var(--color-red, #e5534b);
+	--ct-pri-high: var(--color-orange, #e08c3b);
+	--ct-pri-medium: var(--color-yellow, #d1b34a);
+	--ct-pri-none: var(--text-faint);
+	--ct-pri-low: var(--color-blue, #5c93d6);
+	--ct-pri-lowest: var(--color-purple, #9d7cd8);
+	/* Narrowest a month column may get before the grid scrolls sideways. */
+	--ct-month-col: 96px;
+
+	padding: 0;
+	overflow-y: auto;
+	height: 100%;
+}
+
+.ct-hidden { display: none !important; }
+
+/* ── Toolbar ─────────────────────────────────────────────────────────────── */
+
+.ct-toolbar {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	flex-wrap: wrap;
+	padding: 10px 14px;
+	border-bottom: 1px solid var(--background-modifier-border);
+	background: var(--background-primary);
+	position: sticky;
+	top: 0;
+	z-index: 10;
+}
+
+.ct-toolbar-nav { display: flex; align-items: center; gap: 4px; }
+
+.ct-toolbar-title {
+	font-size: 1.05em;
+	font-weight: 600;
+	margin-right: auto;
+	white-space: nowrap;
+}
+
+.ct-toolbar-tools {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex-wrap: wrap;
+}
+
+.ct-icon-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	padding: 0;
+	border-radius: var(--ct-radius);
+	background: transparent;
+	border: none;
+	color: var(--text-muted);
+	cursor: pointer;
+	box-shadow: none;
+}
+
+.ct-icon-btn:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
+.ct-icon-btn.is-active { color: var(--ct-accent); }
+
+.ct-btn {
+	padding: 4px 10px;
+	border-radius: var(--ct-radius);
+	font-size: 0.85em;
+	cursor: pointer;
+}
+
+.ct-btn-cta { background: var(--ct-accent); color: var(--text-on-accent); }
+
+.ct-mode-switch {
+	display: inline-flex;
+	background: var(--background-modifier-hover);
+	border-radius: var(--ct-radius);
+	padding: 2px;
+	gap: 2px;
+}
+
+.ct-mode-btn {
+	padding: 3px 10px;
+	font-size: 0.8em;
+	border: none;
+	background: transparent;
+	border-radius: calc(var(--ct-radius) - 2px);
+	color: var(--text-muted);
+	cursor: pointer;
+	box-shadow: none;
+}
+
+.ct-mode-btn.is-active {
+	background: var(--background-primary);
+	color: var(--text-normal);
+	font-weight: 600;
+}
+
+.ct-search, .ct-tag-select {
+	height: 28px;
+	font-size: 0.85em;
+	padding: 0 8px;
+	border-radius: var(--ct-radius);
+	max-width: 180px;
+}
+
+/* ── Month grid ──────────────────────────────────────────────────────────── */
+
+.ct-cal-body { padding: 10px 14px 24px; }
+
+/*
+   Media queries key off the window, not the pane, so a calendar docked in a
+   narrow sidebar on a wide screen still gets the desktop layout. Columns
+   therefore carry their own floor and the grid scrolls sideways past it,
+   the same way the week view does — squeezing seven legible days into a
+   250px sidebar isn't possible, so it scrolls rather than collapsing.
+*/
+.ct-month-grid {
+	overflow-x: auto;
+	padding-bottom: 4px;
+}
+
+.ct-month-head,
+.ct-month-cells {
+	display: grid;
+	grid-template-columns: repeat(7, minmax(var(--ct-month-col), 1fr));
+	gap: 4px;
+}
+
+/* Both grids share the track sizing, so they overflow in step and the
+   weekday header stays above the right column while scrolling. */
+
+.ct-weekday {
+	text-align: center;
+	font-size: 0.72em;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: var(--text-faint);
+	padding: 4px 0 6px;
+}
+
+.ct-day-cell {
+	min-height: 108px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--ct-radius);
+	padding: 4px;
+	background: var(--background-primary);
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+	transition: background 120ms ease, border-color 120ms ease;
+	overflow: hidden;
+}
+
+.ct-day-cell:hover { background: var(--background-primary-alt); }
+.ct-day-cell.is-outside { opacity: 0.45; }
+.ct-day-cell.is-weekend { background: var(--background-secondary); }
+.ct-day-cell.is-today { border-color: var(--ct-accent); box-shadow: inset 0 0 0 1px var(--ct-accent); }
+.ct-day-cell.is-drop-target,
+.ct-week-col.is-drop-target,
+.ct-day-view.is-drop-target {
+	background: var(--background-modifier-hover);
+	border-color: var(--ct-accent);
+}
+
+.ct-day-header { display: flex; align-items: center; justify-content: space-between; }
+
+.ct-day-number {
+	font-size: 0.82em;
+	font-weight: 600;
+	color: var(--text-muted);
+	cursor: pointer;
+	padding: 1px 5px;
+	border-radius: 4px;
+}
+
+.ct-day-number:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
+.ct-day-cell.is-today .ct-day-number { background: var(--ct-accent); color: var(--text-on-accent); }
+
+.ct-day-count {
+	font-size: 0.68em;
+	color: var(--text-faint);
+	background: var(--background-modifier-hover);
+	border-radius: 999px;
+	padding: 0 5px;
+}
+
+.ct-day-tasks { display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
+
+.ct-more {
+	font-size: 0.7em;
+	color: var(--text-faint);
+	cursor: pointer;
+	padding-left: 4px;
+}
+
+.ct-more:hover { color: var(--ct-accent); }
+
+/* ── Task chip (month view) ──────────────────────────────────────────────── */
+
+.ct-chip {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 0.74em;
+	line-height: 1.35;
+	padding: 2px 4px;
+	border-radius: 4px;
+	border-left: 3px solid var(--ct-chip-accent);
+	background: var(--background-modifier-hover);
+	cursor: pointer;
+	overflow: hidden;
+}
+
+.ct-chip:hover { background: var(--background-modifier-active-hover); }
+.ct-chip.is-dragging { opacity: 0.4; }
+.ct-chip.is-virtual { border-left-style: dashed; opacity: 0.85; }
+
+.ct-chip.is-done .ct-chip-title,
+.ct-row.is-done .ct-row-title {
+	text-decoration: line-through;
+	color: var(--text-faint);
+}
+
+.ct-chip-check, .ct-row-check {
+	display: inline-flex;
+	align-items: center;
+	color: var(--text-faint);
+	flex-shrink: 0;
+	cursor: pointer;
+}
+
+.ct-chip-check svg { width: 12px; height: 12px; }
+.ct-row-check svg { width: 16px; height: 16px; }
+.ct-chip-check:hover, .ct-row-check:hover { color: var(--ct-accent); }
+.ct-chip.is-done .ct-chip-check, .ct-row.is-done .ct-row-check { color: var(--ct-done); }
+
+.ct-chip-title {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	flex: 1;
+}
+
+.ct-chip-time {
+	font-variant-numeric: tabular-nums;
+	color: var(--text-muted);
+	font-weight: 600;
+	flex-shrink: 0;
+	font-size: 0.95em;
+}
+
+.ct-chip.is-done .ct-chip-time { color: var(--text-faint); }
+
+.ct-chip-badge { display: inline-flex; color: var(--text-faint); flex-shrink: 0; }
+.ct-chip-badge svg { width: 10px; height: 10px; }
+
+.ct-chip-countdown {
+	font-size: 0.9em;
+	color: var(--ct-accent);
+	font-variant-numeric: tabular-nums;
+	flex-shrink: 0;
+}
+
+/* Priority accents, shared by chips, rows and bars. */
+/* Priority is shown as colour, not as an emoji badge. The per-priority
+   variables are re-declared inline on the view root when the user sets
+   their own colours, so both the accent and the dot follow along. */
+.ct-pri-highest { --ct-chip-accent: var(--ct-pri-highest); --ct-pri-color: var(--ct-pri-highest); }
+.ct-pri-high    { --ct-chip-accent: var(--ct-pri-high);    --ct-pri-color: var(--ct-pri-high); }
+.ct-pri-medium  { --ct-chip-accent: var(--ct-pri-medium);  --ct-pri-color: var(--ct-pri-medium); }
+.ct-pri-none    { --ct-chip-accent: var(--ct-pri-none);    --ct-pri-color: var(--ct-pri-none); }
+.ct-pri-low     { --ct-chip-accent: var(--ct-pri-low);     --ct-pri-color: var(--ct-pri-low); }
+.ct-pri-lowest  { --ct-chip-accent: var(--ct-pri-lowest);  --ct-pri-color: var(--ct-pri-lowest); }
+
+/* A dot carries the priority where the emoji used to sit. */
+.ct-row-pri {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	flex-shrink: 0;
+	background: var(--ct-pri-color, var(--text-faint));
+	align-self: center;
+}
+
+.ct-pri-none .ct-row-pri { display: none; }
+
+.ct-emoji-icon { flex-shrink: 0; font-size: 1.05em; line-height: 1; }
+.ct-chip .ct-emoji-icon { font-size: 0.95em; }
+
+/* ── Task row (week / day / today) ───────────────────────────────────────── */
+
+.ct-row {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+	padding: 6px 8px;
+	border-radius: var(--ct-radius);
+	border-left: 3px solid var(--ct-chip-accent);
+	background: var(--background-primary-alt);
+	cursor: pointer;
+	margin-bottom: 3px;
+	position: relative;
+}
+
+.ct-row:hover { background: var(--background-modifier-hover); }
+.ct-row.is-dragging { opacity: 0.4; }
+.ct-row.is-virtual { border-left-style: dashed; }
+.ct-row.is-overdue { background: color-mix(in srgb, var(--ct-warn) 8%, var(--background-primary-alt)); }
+
+.ct-row-main { flex: 1; min-width: 0; }
+
+.ct-row-title {
+	font-size: 0.88em;
+	line-height: 1.4;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 2px 6px;
+}
+
+/* The time badge is nowrap + no-shrink, so without a width floor here the
+   text got squeezed to a few pixels and broke one character per line.
+   The floor makes the badge wrap to its own line instead. */
+.ct-row-text {
+	flex: 1 1 auto;
+	min-width: 8ch;
+	overflow-wrap: break-word;
+}
+
+.ct-row-pri { font-size: 0.85em; flex-shrink: 0; }
+
+.ct-row-time {
+	font-size: 0.9em;
+	font-variant-numeric: tabular-nums;
+	color: var(--ct-accent);
+	background: color-mix(in srgb, var(--ct-accent) 12%, transparent);
+	border-radius: 3px;
+	padding: 0 5px;
+	white-space: nowrap;
+	flex-shrink: 0;
+}
+
+.ct-row.is-done .ct-row-time { color: var(--text-faint); background: transparent; }
+.ct-meta-duration::before { content: "⏱ "; opacity: 0.7; }
+
+.ct-row-meta {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin-top: 2px;
+	font-size: 0.72em;
+	color: var(--text-faint);
+	align-items: center;
+}
+
+.ct-tag {
+	background: var(--background-modifier-hover);
+	color: var(--text-muted);
+	border-radius: 999px;
+	padding: 0 6px;
+}
+
+.ct-tag.is-coloured {
+	background: color-mix(in srgb, var(--ct-tag-color) 22%, transparent);
+	color: var(--ct-tag-color);
+	font-weight: 600;
+}
+
+.ct-meta-countdown { color: var(--ct-accent); font-weight: 500; }
+.ct-meta-date { color: var(--text-muted); }
+.ct-row.is-overdue .ct-meta-date { color: var(--ct-warn); font-weight: 600; }
+.ct-meta-source { opacity: 0.7; font-style: italic; }
+
+.ct-row-action {
+	display: inline-flex;
+	align-items: center;
+	color: var(--text-faint);
+	opacity: 0;
+	transition: opacity 120ms ease;
+}
+
+.ct-row:hover .ct-row-action { opacity: 1; }
+.ct-row-action:hover { color: var(--ct-accent); }
+
+/* ── Events ──────────────────────────────────────────────────────────────── */
+
+.ct-event {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 0.72em;
+	padding: 2px 6px;
+	margin-bottom: 2px;
+	border-radius: 3px;
+	background: color-mix(in srgb, var(--ct-event-color) 22%, transparent);
+	color: var(--text-normal);
+	border-left: 3px solid var(--ct-event-color);
+	cursor: pointer;
+	overflow: hidden;
+	white-space: nowrap;
+}
+
+.ct-event:hover { background: color-mix(in srgb, var(--ct-event-color) 34%, transparent); }
+.ct-event.is-middle, .ct-event.is-end { border-left-color: transparent; }
+.ct-event-title { overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
+.ct-event-time { margin-left: auto; opacity: 0.75; font-variant-numeric: tabular-nums; }
+
+/* ── Week view ───────────────────────────────────────────────────────────── */
+
+.ct-week-summary {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 8px 2px 14px;
+	font-size: 0.8em;
+	color: var(--text-muted);
+}
+
+.ct-week-summary-label { font-weight: 600; color: var(--text-normal); }
+.ct-week-summary-value { white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+.ct-progress-track {
+	flex: 1;
+	height: 6px;
+	background: var(--background-modifier-border);
+	border-radius: 999px;
+	overflow: hidden;
+	min-width: 80px;
+}
+
+.ct-progress-fill {
+	height: 100%;
+	background: var(--ct-done);
+	border-radius: 999px;
+	transition: width 200ms ease;
+}
+
+.ct-week-grid {
+	display: grid;
+	grid-template-columns: repeat(7, minmax(132px, 1fr));
+	gap: 6px;
+	align-items: start;
+	overflow-x: auto;
+	padding-bottom: 4px;
+}
+
+.ct-week-col {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--ct-radius);
+	padding: 6px;
+	min-height: 220px;
+	background: var(--background-primary);
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.ct-week-col.is-weekend { background: var(--background-secondary); }
+.ct-week-col.is-today { border-color: var(--ct-accent); box-shadow: inset 0 0 0 1px var(--ct-accent); }
+
+.ct-week-col-head {
+	display: flex;
+	align-items: baseline;
+	gap: 6px;
+	padding-bottom: 4px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.ct-week-dayname { font-size: 0.7em; text-transform: uppercase; color: var(--text-faint); letter-spacing: 0.05em; }
+.ct-week-daynum { font-size: 1.05em; font-weight: 600; }
+.ct-week-progress { margin-left: auto; font-size: 0.7em; color: var(--text-faint); font-variant-numeric: tabular-nums; }
+
+.ct-week-tasks { display: flex; flex-direction: column; }
+.ct-week-tasks .ct-row { background: transparent; padding: 4px 6px; }
+/* Columns are narrow, so drop the time onto its own line. Pushing the badge
+   down (rather than widening the text) keeps the priority marker beside the
+   title instead of stranding it on a line of its own. */
+.ct-week-tasks .ct-row-text { min-width: 6ch; }
+.ct-week-tasks .ct-row-time { flex: 0 0 100%; order: 2; }
+.ct-week-tasks .ct-row:hover { background: var(--background-modifier-hover); }
+
+.ct-empty-hint { color: var(--text-faint); font-size: 0.8em; text-align: center; padding: 6px 0; }
+
+.ct-week-add {
+	font-size: 0.75em;
+	color: var(--text-faint);
+	cursor: pointer;
+	padding: 3px 6px;
+	border-radius: 4px;
+	margin-top: auto;
+}
+
+.ct-week-add:hover { background: var(--background-modifier-hover); color: var(--ct-accent); }
+
+.ct-inline-add {
+	width: 100%;
+	font-size: 0.8em;
+	padding: 4px 6px;
+	margin-top: 3px;
+	border-radius: 4px;
+	border: 1px solid var(--ct-accent);
+	background: var(--background-primary);
+}
+
+/* ── Sections (day view, today, stats) ───────────────────────────────────── */
+
+.ct-section { margin-bottom: 18px; }
+
+.ct-section-title {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 0.75em;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.07em;
+	color: var(--text-faint);
+	margin-bottom: 6px;
+}
+
+.ct-section-title.is-clickable { cursor: pointer; }
+.ct-section-title.is-clickable:hover { color: var(--text-muted); }
+.ct-chevron { display: inline-flex; }
+.ct-chevron svg { width: 13px; height: 13px; }
+
+.ct-section-count {
+	background: var(--background-modifier-hover);
+	border-radius: 999px;
+	padding: 0 6px;
+	font-size: 0.95em;
+}
+
+.ct-section.is-overdue-section .ct-section-title { color: var(--ct-warn); }
+.ct-section.is-done-section { opacity: 0.75; }
+
+.ct-empty {
+	font-size: 0.85em;
+	color: var(--text-faint);
+	padding: 10px;
+	text-align: center;
+	border: 1px dashed var(--background-modifier-border);
+	border-radius: var(--ct-radius);
+}
+
+.ct-day-view { padding-top: 4px; }
+
+/* ── Today view ──────────────────────────────────────────────────────────── */
+
+.ct-today-view { padding: 14px; }
+
+.ct-today-header {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding-bottom: 14px;
+	margin-bottom: 12px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.ct-today-heading { flex: 1; min-width: 0; }
+.ct-today-date { font-size: 1.2em; font-weight: 700; }
+.ct-today-sub { font-size: 0.78em; color: var(--text-faint); }
+
+.ct-ring {
+	--ct-ring-pct: 0;
+	width: 52px;
+	height: 52px;
+	border-radius: 50%;
+	flex-shrink: 0;
+	display: grid;
+	place-items: center;
+	background: conic-gradient(
+		var(--ct-done) calc(var(--ct-ring-pct) * 1%),
+		var(--background-modifier-border) 0
+	);
+}
+
+.ct-ring-label {
+	width: 40px;
+	height: 40px;
+	border-radius: 50%;
+	background: var(--background-primary);
+	display: grid;
+	place-items: center;
+	font-size: 0.72em;
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+}
+
+.ct-today-stats { display: flex; flex-direction: column; gap: 2px; }
+.ct-stat-mini { font-size: 0.75em; color: var(--text-muted); white-space: nowrap; }
+.ct-stat-mini.is-planned { color: var(--ct-accent); font-weight: 600; }
+.ct-quick-add { margin-top: 6px; }
+
+/* ── Stats view ──────────────────────────────────────────────────────────── */
+
+.ct-stats-view { padding: 0 0 24px; }
+.ct-stats-view .ct-section { padding: 0 14px; }
+.ct-stats-toolbar { justify-content: space-between; }
+
+.ct-kpi-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+	gap: 8px;
+	padding: 14px;
+}
+
+.ct-kpi {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--ct-radius);
+	padding: 10px 12px;
+	background: var(--background-primary-alt);
+}
+
+.ct-kpi-value { font-size: 1.6em; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.ct-kpi-label { font-size: 0.78em; color: var(--text-muted); margin-top: 2px; }
+.ct-kpi-sub { font-size: 0.68em; color: var(--text-faint); margin-top: 1px; }
+.ct-kpi.is-good .ct-kpi-value { color: var(--ct-done); }
+.ct-kpi.is-bad .ct-kpi-value { color: var(--ct-warn); }
+
+.ct-bars {
+	display: flex;
+	align-items: flex-end;
+	gap: 2px;
+	height: 110px;
+	padding: 6px 0;
+}
+
+.ct-bar-col {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	justify-content: flex-end;
+	align-items: center;
+	height: 100%;
+	gap: 3px;
+	min-width: 0;
+}
+
+.ct-bar {
+	width: 100%;
+	max-width: 22px;
+	background: var(--ct-accent);
+	border-radius: 2px 2px 0 0;
+	min-height: 2px;
+	transition: height 200ms ease;
+}
+
+.ct-bar.is-empty { background: var(--background-modifier-border); }
+.ct-bar.is-today { background: var(--ct-done); }
+
+.ct-bar-label {
+	font-size: 0.6em;
+	color: var(--text-faint);
+	font-variant-numeric: tabular-nums;
+}
+
+.ct-chart-caption { font-size: 0.72em; color: var(--text-faint); margin-top: 4px; }
+
+.ct-heatmap-wrap { display: flex; gap: 4px; align-items: flex-start; overflow-x: auto; }
+
+.ct-heatmap-labels {
+	display: grid;
+	grid-template-rows: repeat(7, 13px);
+	gap: 3px;
+	flex-shrink: 0;
+}
+
+.ct-heatmap-label { font-size: 0.58em; color: var(--text-faint); line-height: 13px; }
+
+.ct-heatmap {
+	display: grid;
+	grid-template-rows: repeat(7, 13px);
+	grid-auto-flow: column;
+	grid-auto-columns: 13px;
+	gap: 3px;
+}
+
+.ct-heat { border-radius: 2px; background: var(--background-modifier-border); }
+.ct-heat-1 { background: color-mix(in srgb, var(--ct-done) 30%, var(--background-modifier-border)); }
+.ct-heat-2 { background: color-mix(in srgb, var(--ct-done) 55%, var(--background-modifier-border)); }
+.ct-heat-3 { background: color-mix(in srgb, var(--ct-done) 78%, var(--background-modifier-border)); }
+.ct-heat-4 { background: var(--ct-done); }
+.ct-heat.is-today { outline: 1px solid var(--ct-accent); outline-offset: 1px; }
+
+.ct-breakdown-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 5px;
+	font-size: 0.78em;
+}
+
+.ct-breakdown-label {
+	width: 110px;
+	flex-shrink: 0;
+	color: var(--text-muted);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.ct-breakdown-track {
+	flex: 1;
+	display: flex;
+	height: 14px;
+	background: var(--background-modifier-border);
+	border-radius: 3px;
+	overflow: hidden;
+	min-width: 60px;
+}
+
+.ct-breakdown-done { background: var(--ct-done); }
+.ct-breakdown-open { background: var(--ct-chip-accent, var(--text-faint)); opacity: 0.55; }
+
+.ct-breakdown-value {
+	width: 52px;
+	text-align: right;
+	color: var(--text-faint);
+	font-variant-numeric: tabular-nums;
+	flex-shrink: 0;
+}
+
+.ct-legend {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	font-size: 0.7em;
+	color: var(--text-faint);
+	margin-top: 8px;
+}
+
+.ct-legend-swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.ct-legend-swatch.is-done { background: var(--ct-done); }
+.ct-legend-swatch.is-open { background: var(--text-faint); opacity: 0.55; margin-left: 8px; }
+
+.ct-countdown-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 8px;
+	border-radius: var(--ct-radius);
+	font-size: 0.82em;
+	cursor: pointer;
+}
+
+.ct-countdown-row:hover { background: var(--background-modifier-hover); }
+.ct-countdown-dot {
+	width: 8px; height: 8px; border-radius: 50%;
+	background: var(--ct-event-color);
+	flex-shrink: 0;
+}
+.ct-countdown-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ct-countdown-when { color: var(--text-faint); font-size: 0.9em; }
+.ct-countdown-days {
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+	color: var(--ct-accent);
+	min-width: 42px;
+	text-align: right;
+}
+
+/* ── Modal / settings ────────────────────────────────────────────────────── */
+
+.ct-modal .ct-modal-title-input { width: 100%; }
+
+/* ── Required fields ─────────────────────────────────────────────────────── */
+
+.ct-required {
+	color: var(--text-error, #e5534b);
+	font-weight: 700;
+	margin-left: 3px;
+	cursor: help;
+}
+
+/* Applied when a required field is empty on submit; cleared on next edit. */
+.ct-invalid,
+input.ct-invalid {
+	border-color: var(--text-error, #e5534b) !important;
+	box-shadow: 0 0 0 2px color-mix(in srgb, var(--text-error, #e5534b) 22%, transparent) !important;
+}
+.ct-modal .setting-item { padding: 8px 0; border: none; }
+
+/* Header above a field card — matches Setting's name/description styling
+   so cards and plain settings read as a single list. */
+.ct-field-header { margin: 14px 0 0; }
+
+.ct-field-header-name {
+	font-size: var(--font-ui-medium, 0.95em);
+	font-weight: 600;
+	color: var(--text-normal);
+	line-height: 1.3;
+}
+
+.ct-field-header-desc {
+	font-size: var(--font-ui-smaller, 0.8em);
+	color: var(--text-muted);
+	line-height: 1.35;
+	margin-top: 1px;
+}
+
+/* ── Tag editor ──────────────────────────────────────────────────────────── */
+
+.ct-tag-pills {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	align-items: center;
+	min-height: 24px;
+	margin-bottom: 9px;
+}
+
+.ct-tag-pill {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 3px 5px 3px 9px;
+	border-radius: 999px;
+	font-size: 0.8em;
+	background: var(--background-modifier-hover);
+	color: var(--text-muted);
+	border: 1px solid transparent;
+}
+
+.ct-tag-pill.is-coloured {
+	background: color-mix(in srgb, var(--ct-tag-color) 18%, transparent);
+	border-color: color-mix(in srgb, var(--ct-tag-color) 40%, transparent);
+	color: var(--ct-tag-color);
+	font-weight: 600;
+}
+
+.ct-tag-pill-remove {
+	display: inline-flex;
+	align-items: center;
+	cursor: pointer;
+	opacity: 0.55;
+	border-radius: 50%;
+}
+
+.ct-tag-pill-remove:hover { opacity: 1; background: var(--background-modifier-hover); }
+.ct-tag-pill-remove svg { width: 12px; height: 12px; }
+
+.ct-tag-input-wrap { position: relative; }
+
+.ct-tag-input {
+	width: 100%;
+	height: 32px;
+	padding: 0 10px;
+	border-radius: 6px;
+	font-size: 0.85em;
+	background: var(--background-modifier-form-field);
+	border: 1px solid var(--background-modifier-border);
+	color: var(--text-normal);
+}
+
+.ct-tag-input:focus {
+	border-color: var(--interactive-accent);
+	box-shadow: 0 0 0 2px color-mix(in srgb, var(--interactive-accent) 22%, transparent);
+	outline: none;
+}
+
+.ct-tag-suggest {
+	display: none;
+	position: absolute;
+	top: calc(100% + 4px);
+	left: 0;
+	right: 0;
+	z-index: 30;
+	max-height: 210px;
+	overflow-y: auto;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	box-shadow: var(--shadow-s, 0 4px 14px rgba(0, 0, 0, 0.28));
+	padding: 4px;
+}
+
+.ct-tag-suggest.is-open { display: block; }
+
+.ct-tag-option {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 6px 8px;
+	border-radius: 5px;
+	font-size: 0.85em;
+	cursor: pointer;
+	color: var(--text-normal);
+}
+
+.ct-tag-option:hover,
+.ct-tag-option.is-highlighted {
+	background: var(--background-modifier-hover);
+}
+
+.ct-tag-option.is-highlighted { box-shadow: inset 2px 0 0 var(--interactive-accent); }
+.ct-tag-option-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.ct-tag-option-count {
+	font-size: 0.85em;
+	color: var(--text-faint);
+	font-variant-numeric: tabular-nums;
+}
+
+.ct-tag-option.is-new .ct-tag-option-name { color: var(--interactive-accent); font-weight: 600; }
+
+/* ── Field cards (recurrence and time pickers) ───────────────────────────────────────────────────── */
+
+.ct-field {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 10px;
+	padding: 12px 14px;
+	margin: 6px 0 12px;
+	background: var(--background-primary-alt);
+	transition: border-color 140ms ease;
+}
+
+.ct-field:focus-within { border-color: var(--interactive-accent); }
+
+.ct-field-row {
+	display: flex;
+	align-items: flex-start;
+	gap: 10px;
+	margin-bottom: 8px;
+}
+
+.ct-field-row:last-child { margin-bottom: 0; }
+
+.ct-field-label {
+	width: 62px;
+	flex-shrink: 0;
+	font-size: 0.82em;
+	color: var(--text-muted);
+	padding-top: 5px;
+}
+
+.ct-field-control {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+}
+
+/* Segmented control — frequency and end mode */
+.ct-segment {
+	display: inline-flex;
+	background: var(--background-modifier-hover);
+	border-radius: 6px;
+	padding: 2px;
+	gap: 2px;
+	flex-wrap: wrap;
+}
+
+.ct-segment-btn {
+	padding: 4px 11px;
+	font-size: 0.8em;
+	border: none;
+	background: transparent;
+	border-radius: 4px;
+	color: var(--text-muted);
+	cursor: pointer;
+	box-shadow: none;
+}
+
+.ct-segment-btn:hover { color: var(--text-normal); }
+
+.ct-segment-btn.is-active {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	font-weight: 600;
+}
+
+/* "Every [N] weeks" stepper */
+.ct-field-stepper { display: inline-flex; align-items: center; gap: 6px; }
+
+.ct-step-btn {
+	width: 28px;
+	height: 30px;
+	padding: 0;
+	border-radius: 4px;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-primary);
+	color: var(--text-muted);
+	cursor: pointer;
+	font-size: 1em;
+	line-height: 1;
+	box-shadow: none;
+}
+
+.ct-step-btn:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
+
+.ct-field-number {
+	width: 58px;
+	height: 30px;
+	text-align: center;
+	font-variant-numeric: tabular-nums;
+	border-radius: 6px;
+	background: var(--background-modifier-form-field);
+	border: 1px solid var(--background-modifier-border);
+	color: var(--text-normal);
+}
+
+.ct-field-unit { font-size: 0.85em; color: var(--text-muted); }
+
+/* Weekday toggles */
+.ct-recur-days { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+
+.ct-day-toggle {
+	width: 32px;
+	height: 32px;
+	padding: 0;
+	border-radius: 50%;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-primary);
+	color: var(--text-muted);
+	font-size: 0.74em;
+	font-weight: 600;
+	cursor: pointer;
+	box-shadow: none;
+	transition: background 120ms ease, color 120ms ease, transform 80ms ease;
+}
+
+.ct-day-toggle:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
+.ct-day-toggle:active { transform: scale(0.92); }
+
+.ct-day-toggle.is-active {
+	background: var(--interactive-accent);
+	border-color: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
+.ct-field-presets { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+
+.ct-mini-btn {
+	padding: 2px 8px;
+	font-size: 0.72em;
+	border-radius: 999px;
+	border: 1px solid var(--background-modifier-border);
+	background: transparent;
+	color: var(--text-muted);
+	cursor: pointer;
+	box-shadow: none;
+}
+
+.ct-mini-btn:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
+
+.ct-mini-btn.is-active {
+	background: color-mix(in srgb, var(--interactive-accent) 20%, transparent);
+	border-color: var(--interactive-accent);
+	color: var(--interactive-accent);
+	font-weight: 600;
+}
+
+/* "End time" before a start time exists. */
+.ct-segment-btn.is-disabled {
+	opacity: 0.4;
+	cursor: not-allowed;
+}
+
+.ct-segment-btn.is-disabled:hover { color: var(--text-muted); }
+
+.ct-time .ct-field-control { gap: 8px; }
+.ct-time .ct-icon-btn { width: 26px; height: 26px; }
+
+.ct-field-time,
+.ct-field-select {
+	height: 30px;
+	font-size: 0.85em;
+	border-radius: 6px;
+	background: var(--background-modifier-form-field);
+	border: 1px solid var(--background-modifier-border);
+	color: var(--text-normal);
+	padding: 0 8px;
+}
+
+.ct-field-time:focus,
+.ct-field-select:focus,
+.ct-field-number:focus {
+	border-color: var(--interactive-accent);
+	box-shadow: 0 0 0 2px color-mix(in srgb, var(--interactive-accent) 22%, transparent);
+	outline: none;
+}
+
+/* The native time picker's clock icon is invisible on dark themes. */
+.ct-field-time::-webkit-calendar-picker-indicator {
+	filter: invert(0.5);
+	cursor: pointer;
+	opacity: 0.8;
+}
+
+.ct-field-time::-webkit-calendar-picker-indicator:hover { opacity: 1; }
+
+.theme-dark .ct-field-time::-webkit-calendar-picker-indicator { filter: invert(0.75); }
+
+.ct-row-desc {
+	display: flex;
+	align-items: baseline;
+	gap: 5px;
+	font-size: 0.78em;
+	color: var(--text-muted);
+	margin-top: 2px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.ct-row-desc-icon { color: var(--text-faint); flex-shrink: 0; }
+
+/* ── Note suggester ──────────────────────────────────────────────────────── */
+
+.ct-note-input { width: 100%; }
+
+.ct-note-suggestion {
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+	overflow: hidden;
+}
+
+.ct-note-suggestion-name {
+	font-weight: 500;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.ct-note-suggestion-path {
+	font-size: 0.8em;
+	color: var(--text-faint);
+	margin-left: auto;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	direction: rtl;
+	text-align: right;
+}
+
+.ct-note-suggestion-new,
+.ct-note-suggestion-tag {
+	flex-shrink: 0;
+	font-size: 0.68em;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	padding: 1px 6px;
+	border-radius: 999px;
+}
+
+.ct-note-suggestion-new {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
+.ct-note-suggestion-tag {
+	background: var(--background-modifier-border);
+	color: var(--text-muted);
+}
+
+/* ── Emoji picker ────────────────────────────────────────────────────────── */
+
+.ct-emoji-field { position: relative; flex-shrink: 0; }
+
+.ct-emoji-btn {
+	width: 32px;
+	height: 32px;
+	padding: 0;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 1.05em;
+	line-height: 1;
+	border-radius: 6px;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-modifier-form-field);
+	cursor: pointer;
+	box-shadow: none;
+}
+
+.ct-emoji-btn:hover { border-color: var(--interactive-accent); }
+.ct-emoji-btn.is-empty { color: var(--text-faint); }
+
+.ct-emoji-panel {
+	position: absolute;
+	z-index: 30;
+	top: calc(100% + 6px);
+	left: 0;
+	width: 268px;
+	max-height: 300px;
+	overflow-y: auto;
+	padding: 10px;
+	border-radius: 10px;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-secondary);
+	box-shadow: 0 8px 26px rgba(0, 0, 0, 0.28);
+}
+
+.ct-emoji-custom { display: flex; gap: 6px; margin-bottom: 8px; }
+
+.ct-emoji-input {
+	flex: 1;
+	min-width: 0;
+	height: 28px;
+	font-size: 0.85em;
+	border-radius: 6px;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-modifier-form-field);
+	color: var(--text-normal);
+	padding: 0 8px;
+}
+
+.ct-emoji-group {
+	font-size: 0.7em;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: var(--text-faint);
+	margin: 8px 0 4px;
+}
+
+.ct-emoji-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px; }
+
+.ct-emoji-option {
+	aspect-ratio: 1;
+	padding: 0;
+	font-size: 0.95em;
+	line-height: 1;
+	border: 1px solid transparent;
+	border-radius: 5px;
+	background: transparent;
+	cursor: pointer;
+	box-shadow: none;
+}
+
+.ct-emoji-option:hover { background: var(--background-modifier-hover); }
+.ct-emoji-option.is-active { border-color: var(--interactive-accent); }
+
+/* The default swatch has no colour of its own to show. */
+.ct-tagcolor-swatch.is-priority-default { background: var(--ct-pri-color, var(--text-faint)); }
+
+@media (pointer: coarse) {
+	.ct-emoji-panel { width: min(300px, 80vw); }
+	.ct-emoji-grid { grid-template-columns: repeat(8, 1fr); gap: 4px; }
+}
+
+.ct-details-input {
+	width: 100%;
+	min-height: 68px;
+	resize: vertical;
+	font-family: var(--font-text);
+	font-size: 0.88em;
+	line-height: 1.45;
+	padding: 8px 10px;
+}
+
+/* ── Date field ──────────────────────────────────────────────────────────
+   A text box plus a button that opens the platform's own picker. The
+   native input is kept in the DOM but hidden, because its rendered format
+   follows the OS locale and can't be overridden. */
+
+.ct-datefield {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	position: relative;
+}
+
+.ct-datefield-text {
+	height: 30px;
+	width: 11ch;
+	font-size: 0.85em;
+	font-variant-numeric: tabular-nums;
+	border-radius: 6px;
+	background: var(--background-modifier-form-field);
+	border: 1px solid var(--background-modifier-border);
+	color: var(--text-normal);
+	padding: 0 8px;
+}
+
+.ct-datefield-text:focus {
+	border-color: var(--interactive-accent);
+	box-shadow: 0 0 0 2px color-mix(in srgb, var(--interactive-accent) 22%, transparent);
+	outline: none;
+}
+
+.ct-datefield-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 30px;
+	height: 30px;
+	padding: 0;
+	flex-shrink: 0;
+	border-radius: 6px;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-modifier-form-field);
+	color: var(--text-muted);
+	cursor: pointer;
+	box-shadow: none;
+}
+
+.ct-datefield-btn:hover {
+	color: var(--text-normal);
+	border-color: var(--interactive-accent);
+}
+
+.ct-datefield-btn .svg-icon { width: 15px; height: 15px; }
+
+/* Anchored under the field so the popup calendar lands in the right place. */
+.ct-datefield-native {
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	border: 0;
+	opacity: 0;
+	pointer-events: none;
+}
+
+/* Comfortable tap targets on phones and tablets. */
+@media (pointer: coarse) {
+	.ct-datefield-text { height: 34px; width: 12ch; }
+	.ct-datefield-btn { width: 34px; height: 34px; }
+}
+
+/* ── Weekend picker (settings) ───────────────────────────────────────── */
+
+.ct-weekend-setting .setting-item-control { flex-wrap: wrap; justify-content: flex-end; }
+
+.ct-weekend-picker {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	gap: 6px;
+}
+
+.ct-weekend-picker .ct-field-presets { justify-content: flex-end; }
+
+.ct-field-checkbox {
+	display: inline-flex;
+	align-items: center;
+	gap: 7px;
+	font-size: 0.8em;
+	color: var(--text-muted);
+	cursor: pointer;
+}
+
+.ct-field-note {
+	font-size: 0.74em;
+	color: var(--text-faint);
+	font-style: italic;
+}
+
+/* The mode explainer sits under its segment rather than beside it. */
+.ct-field-control > .ct-field-note { flex: 0 0 100%; margin-top: 4px; }
+
+/* Live preview of the generated dates */
+.ct-field-preview {
+	margin-top: 11px;
+	padding-top: 10px;
+	border-top: 1px dashed var(--background-modifier-border);
+}
+
+.ct-time .ct-field-summary {
+	color: var(--interactive-accent);
+	font-variant-numeric: tabular-nums;
+	font-size: 0.95em;
+	text-transform: none;
+}
+
+.ct-field-summary {
+	font-size: 0.85em;
+	font-weight: 600;
+	color: var(--text-normal);
+	text-transform: capitalize;
+}
+
+.ct-recur-dates {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	font-size: 0.78em;
+	color: var(--text-muted);
+	margin-top: 3px;
+	font-variant-numeric: tabular-nums;
+}
+
+.ct-recur-dates-label { color: var(--text-faint); }
+.ct-field-preview .ct-field-note { margin-top: 3px; display: block; }
+
+.ct-tagcolor-swatch {
+	display: inline-block;
+	width: 11px;
+	height: 11px;
+	border-radius: 3px;
+	margin-left: 7px;
+	vertical-align: middle;
+	border: 1px solid var(--background-modifier-border);
+}
+
+.ct-tagcolor-swatch.is-inline { margin-left: 0; margin-right: 6px; }
+
+/* Unset tags get a hatched swatch so "no colour" is visibly different
+   from "colour that happens to match the background". */
+.ct-tagcolor-swatch.is-unset {
+	background: repeating-linear-gradient(
+		45deg,
+		var(--background-modifier-border) 0 3px,
+		transparent 3px 6px
+	);
+}
+
+.ct-tagcolor-list .setting-item { padding: 6px 0; }
+
+.ct-tag-toolbar {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin: 2px 0 10px;
+}
+
+.ct-tag-search {
+	flex: 1;
+	min-width: 0;
+	height: 32px;
+	padding: 0 10px;
+	border-radius: 6px;
+}
+
+.ct-quick-dates { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0 10px; }
+.ct-date-prompt { padding-bottom: 4px !important; }
+
+/* Leftover settings for tags no longer present in any note. Dimmed so they
+   read as "cleanup", not as part of the live list. */
+.ct-unused-header .setting-item-name { color: var(--text-muted); font-size: 0.9em; }
+.setting-item.is-unused { opacity: 0.62; }
+.setting-item.is-unused .setting-item-name { text-decoration: line-through; }
+.setting-item.is-unused:hover { opacity: 1; }
+.ct-breakdown-label { display: flex; align-items: center; }
+
+.ct-folder-setting { padding-bottom: 2px !important; }
+.ct-settings-hint code {
+	font-size: 0.9em;
+	padding: 1px 5px;
+	border-radius: 3px;
+	background: var(--background-modifier-hover);
+}
+.ct-settings-hint { font-size: 0.82em; color: var(--text-muted); margin: -4px 0 10px; }
+.ct-status { cursor: pointer; }
+
+/* ── Narrow panes, phones and tablets ───────────────────────────────────── */
+
+/* Sidebar-width panes and small tablets. */
+@media (max-width: 880px) {
+	.ct-breakdown-label { width: 92px; }
+	.ct-kpi-grid { grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); }
+}
+
+@media (max-width: 700px) {
+	.ct-cal-body { padding: 8px 8px 20px; }
+	.ct-today-view { padding: 10px; }
+	.ct-stats-view .ct-section { padding: 0 10px; }
+
+	.ct-toolbar { padding: 8px 10px; gap: 6px; }
+	/* Title on its own line so the controls get the full width. */
+	.ct-toolbar-title { order: -1; width: 100%; margin-right: 0; font-size: 1em; }
+	.ct-toolbar-tools { width: 100%; }
+	.ct-search { flex: 1; max-width: none; }
+	.ct-tag-select { max-width: 40vw; }
+
+	.ct-day-cell { min-height: 82px; }
+	.ct-view { --ct-month-col: 84px; }
+	.ct-chip { font-size: 0.68em; }
+	/* Space is too tight for secondary badges; the row view still shows them. */
+	.ct-chip-badge, .ct-chip-countdown { display: none; }
+
+	.ct-week-grid { grid-template-columns: 1fr; overflow-x: visible; }
+	.ct-week-col { min-height: auto; }
+	.ct-week-tasks .ct-row-text { min-width: 8ch; }
+
+	.ct-kpi-grid { grid-template-columns: repeat(2, 1fr); padding: 10px; }
+	.ct-breakdown-label { width: 80px; }
+	.ct-heatmap, .ct-heatmap-labels { grid-template-rows: repeat(7, 11px); }
+	.ct-heatmap { grid-auto-columns: 11px; }
+
+	/* Stack the recurrence picker's label/control pairs. */
+	.ct-field-row { flex-direction: column; align-items: stretch; gap: 5px; }
+	.ct-field-label { width: auto; padding-top: 0; font-weight: 600; }
+	.ct-segment { width: 100%; }
+	.ct-segment-btn { flex: 1; text-align: center; }
+}
+
+@media (max-width: 420px) {
+	.ct-view { --ct-month-col: 72px; }
+	.ct-month-head, .ct-month-cells { gap: 2px; }
+	.ct-day-cell { min-height: 66px; padding: 2px; }
+	.ct-weekday { font-size: 0.65em; }
+	.ct-kpi-grid { grid-template-columns: 1fr 1fr; }
+	.ct-recur-days { justify-content: space-between; width: 100%; }
+}
+
+/* ── Touch input ─────────────────────────────────────────────────────────
+   Anything hover-revealed is unreachable with a finger, and default hit
+   areas are too small. Keyed off pointer type, not width — a touch laptop
+   needs this at full width too. */
+@media (pointer: coarse) {
+	.ct-row-action { opacity: 1; }
+
+	.ct-icon-btn { width: 34px; height: 34px; }
+	.ct-btn { padding: 7px 12px; }
+	.ct-mode-btn { padding: 7px 12px; }
+	.ct-segment-btn { padding: 8px 12px; }
+	.ct-step-btn { width: 32px; height: 32px; }
+	.ct-day-toggle { width: 38px; height: 38px; font-size: 0.78em; }
+
+	.ct-row { padding: 10px 8px; }
+	.ct-chip { padding: 5px 5px; }
+	.ct-chip-check svg { width: 15px; height: 15px; }
+	.ct-row-check svg { width: 20px; height: 20px; }
+	.ct-row-check, .ct-chip-check { padding: 2px; }
+
+	.ct-week-add, .ct-more { padding: 7px 6px; }
+	.ct-inline-add { height: 34px; }
+
+	/* Hover styling sticks after a tap on touch, so drop it. */
+	.ct-day-cell:hover { background: var(--background-primary); }
+	.ct-day-cell.is-weekend:hover { background: var(--background-secondary); }
+}

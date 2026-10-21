@@ -1,0 +1,11 @@
+node_modules/
+main.js
+*.js.map
+.DS_Store
+dist/
+agenda-plus/
+agenda-plus.zip
+calendar-tasks-testvault/
+docs/competitive-research-2026-07-20.md
+.zcode/
+.zcodeignore
