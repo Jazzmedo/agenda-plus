@@ -114,7 +114,7 @@ else
     notes_source="generated from commits"
 fi
 
-files=("dist/agenda-plus-$new_version.zip" dist/main.js dist/manifest.json dist/styles.css)
+files=("dist/agenda-plus-$new_version.zip")
 
 printf '\n%sSummary%s\n' "$B" "$R"
 printf '  Repository:  https://github.com/%s\n' "$REPO"
@@ -164,8 +164,8 @@ for f in main.js manifest.json styles.css; do
     [[ -s $f ]] || die "Missing build output: $f"
     cp "$f" "dist/$f"
 done
-# The three loose files stay because Obsidian's marketplace and update checker
-# download assets by those exact names; the zip is for manual installs.
+# The zip holds exactly the three files Obsidian loads, so it can be extracted
+# straight into <vault>/.obsidian/plugins/agenda-plus/.
 zipfile="agenda-plus-$new_version.zip"
 (cd dist && zip -q "$zipfile" main.js manifest.json styles.css)
 [[ -s "dist/$zipfile" ]] || die "Couldn't create $zipfile"
@@ -201,4 +201,4 @@ fi
 gh release create "$tag" "${files[@]}" "${args[@]}"
 
 printf '\n%s✓ Released %s%s  https://github.com/%s/releases/tag/%s\n' "$GRN$B" "$tag" "$R" "$REPO" "$tag"
-printf '%sObsidian installs the three files from this release; once the plugin is listed in\ncommunity-plugins.json, updates reach users automatically — no new PR needed per release.%s\n' "$DIM" "$R"
+printf '%sTo install: extract the zip into <vault>/.obsidian/plugins/agenda-plus/ and reload Obsidian%s\n' "$DIM" "$R"
