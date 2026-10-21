@@ -168,10 +168,11 @@ In Obsidian: <kbd>Settings</kbd> → <kbd>Community plugins</kbd> → <kbd>Brows
 <details>
 <summary><b>Manual</b> (any release)</summary>
 
-1. Download `main.js`, `manifest.json` and `styles.css` from the
+1. Download `agenda-plus-<version>.zip` from the
    [latest release](https://github.com/Jazzmedo/agenda-plus/releases/latest).
-2. Create the folder `<your vault>/.obsidian/plugins/agenda-plus/` and copy the three
-   files into it.
+2. Create the folder `<your vault>/.obsidian/plugins/agenda-plus/` and extract the zip
+   into it — the folder should end up containing `main.js`, `manifest.json` and
+   `styles.css`.
 3. In Obsidian: <kbd>Settings</kbd> → <kbd>Community plugins</kbd>, turn off restricted
    mode if asked, then enable **AgendaPlus**.
 

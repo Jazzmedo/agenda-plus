@@ -59,7 +59,7 @@ changelog_section() {
 # ---------------------------------------------------------------- checks
 step "Checking"
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || die "Not a git repository."
-for tool in node npm; do
+for tool in node npm zip; do
     command -v "$tool" >/dev/null || die "$tool is needed."
 done
 branch=$(git symbolic-ref --short HEAD 2>/dev/null || true)
@@ -114,8 +114,7 @@ else
     notes_source="generated from commits"
 fi
 
-files=(dist/main.js dist/main.js.sha256 dist/manifest.json dist/manifest.json.sha256
-       dist/styles.css dist/styles.css.sha256)
+files=("dist/agenda-plus-$new_version.zip" dist/main.js dist/manifest.json dist/styles.css)
 
 printf '\n%sSummary%s\n' "$B" "$R"
 printf '  Repository:  https://github.com/%s\n' "$REPO"
@@ -164,8 +163,12 @@ rm -rf dist && mkdir -p dist
 for f in main.js manifest.json styles.css; do
     [[ -s $f ]] || die "Missing build output: $f"
     cp "$f" "dist/$f"
-    (cd dist && sha256sum "$f" > "$f.sha256")
 done
+# The three loose files stay because Obsidian's marketplace and update checker
+# download assets by those exact names; the zip is for manual installs.
+zipfile="agenda-plus-$new_version.zip"
+(cd dist && zip -q "$zipfile" main.js manifest.json styles.css)
+[[ -s "dist/$zipfile" ]] || die "Couldn't create $zipfile"
 ok "Built:"
 ls -lh dist | awk 'NR > 1 {print "    " $5 "  " $NF}'
 trap - ERR
